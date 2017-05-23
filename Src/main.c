@@ -126,7 +126,7 @@ typedef struct{
 	float target;
 	float delta;
 	float int_delta;
-	//float start_throttle;
+	float smooth_delta;
 
 }ICE_Struct;
 ICE_Struct ice;
@@ -170,7 +170,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			val.current_sense0 = (val.current_sense0*199.0 +in.current_sense)/200.0;
 		if(HAL_GetTick()>2000)
 			state.init = false;
-		val.current_sense = fabs( (in.current_sense-val.current_sense0)*100.0);
+		val.current_sense = fabs( (in.current_sense-val.current_sense0)*100.0/20.0*31.0);
 		val.temp =  19.48*in.temp*in.temp-20.09*in.temp+2.87;
 		val.pot = in.pot*100.0/3.3;
 
@@ -195,23 +195,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			pwm.starter = 1000;
 		//throttle
 		ice.delta = ice.target - avg.current_sense;
-		ice.int_delta += ice.delta*0.001;
+		ice.smooth_delta = (ice.smooth_delta*99.0 +ice.delta)/100.0;
+		ice.int_delta += ice.smooth_delta*0.002;
+
 
 		if(state.startDVS){
 			pwm.throttle = HOLOSTOI;
 			if(state.generateing){//zavelsa
-				ice.target = 20.0;
+				ice.target = 40.0;
 				pwm.throttle = (HOLOSTOI+ice.int_delta);//1750*PCA0_MKS;
 			}else{
-						//time=80;
-						ice.int_delta = 0;
-						ice.target=0;
+				ice.int_delta = 0;
+				ice.target=0;
 			}
 		}else{
 			pwm.throttle = MIN_Z;//1200*PCA0_MKS;//;1200*PCA0_MKS;//0//1320
 		}
 		//cooler routine
-		//state.coolerEnabled = true;
 				if(state.coolerEnabled && HAL_GetTick()>=COOLER_DELAY*1000){
 					pwm.cooler = (pwm.cooler*299.0 +COOLER_PWM_DUTY)/300.0;
 				}else{
